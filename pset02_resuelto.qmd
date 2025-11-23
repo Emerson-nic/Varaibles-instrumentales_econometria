@@ -27,7 +27,7 @@ Documento con instrucciones para estimar por variables instrumentales (2SLS / IV
 
 -   Remesas (R): Remesas familiares (ingresos) desde [SECMCA](https://www.secmca.org/params//?cid=4&scid=0&data=REM_FAM_IEN&parent=Remesas%20familiares&son=Remesas%20familiares:%20ingresos,%20egresos%20y%20neto&list). Preferible: remesas trimestrales en niveles nominales y/o como porcentaje del PIB.
 
--   PIB (Y): PIB trimestral real de Nicaragua desde [SECMCA](https://www.secmca.org/params//? cid=1&scid=1&data=PIB_TRIMESTRAL_REAL&parent=Producci%C3%B3n&son=Producto% 20Interno%20Bruto%20%20%20trimestral&list). Construir crecimiento trimestal del PIB: $\bigtriangleup log(PIB_{t})$
+-   PIB (Y): PIB trimestral real de Nicaragua desde [SECMCA](https://www.secmca.org/params//? cid=1&scid=1&data=PIB_TRIMESTRAL_REAL&parent=Producci%C3%B3n&son=Producto% 20Interno%20Bruto%20%20%20trimestral&list). Construir crecimiento trimestal del PIB: $\bigtriangleup log(PIB_{t})$. Nota: dado que el SECMCA no dispone que unidad de medida esta el PIB, utilizo la base de datos del [BCN](https://www.bcn.gob.ni/cuentas-nacionales-trimestrales)
 
 Periodo y Frecuencia: Trabajar en frecuencia trimestral con la información disponible. Si el instrumento es mensual, agregue a trimestre ($Z_t=$ media trimestal ($Z_m$)).
 
@@ -45,7 +45,7 @@ Cualquier otra que consideren relevante.
 
 ## Instrucciones
 
-Estime el efecto de las remesas utilizando OLS y IV - TSLS. Compare. ¿Cuál es preferible
+Estime el efecto de las remesas utilizando OLS y IV - TSLS. Compare. ¿Cuál es preferible?
 
 ¿Qué supuestos son relevantes para preferir IV - TSLS? ¿Se cumplen? Argumente.
 
@@ -60,23 +60,152 @@ Estime el efecto de las remesas utilizando OLS y IV - TSLS. Compare. ¿Cuál es 
 
 if (!require("pacman")) install.packages("pacman")
 
-pacman::p_load( haven, dplyr, xtable, stargazer, MatchIt, margins, ggplot2, tidyr, estimatr, fixest, AER, texreg, broom, sandwich, Synth, plm, car, broom)
+pacman::p_load( haven, dplyr, xtable, stargazer, MatchIt, margins, ggplot2, tidyr, estimatr, fixest, AER, texreg, broom, sandwich, Synth, plm, car, broom, readxl, lmtest)
 
 ```
 
 ### Importar base de datos
 
-When you click the **Render** button a document will be generated that includes both content and the output of embedded code. You can embed code like this:
+Puede descargar la base de datos utilizada en [Github](https://github.com/user-attachments/files/23693496/data_pset02.xlsx)(README) mas el [script quarto](https://github.com/Emerson-nic/Varaibles-instrumentales_econometria)
 
-```{r}
-1 + 1
+```{r importar_excel}
+#| echo: true
+
+data_ <- read_excel("data_pset02.xlsx",
+                    sheet= "Hoja1")
+head(data_)
+
 ```
 
-You can add options to executable code like this
+### Transformar a tasas de crecimiento e implementar dummys
+
+```{r diff_dummys}
+#| echo: true
+data_clean <- data_ %>%
+  mutate(fecha = as.Date(fecha)) %>%
+  
+  mutate(
+    d_remesa    = c(NA, diff(remesa)),
+    d_pib       = c(NA, diff(pib)),
+    d_desempleo = c(NA, diff(desemplo_sect_usa)),
+    d_ipc       = c(NA, diff(ipc)),
+    d_itcer     = c(NA, diff(itcer)),
+    d_pib_usa   = c(NA, diff(pib_usa)), 
+    
+    dummy_2008  = if_else(fecha >= "2008-04-01" & fecha <= "2009-04-01", 1, 0),
+    dummy_2018  = if_else(fecha >= "2018-04-01" & fecha <= "2019-01-01", 1, 0),
+    dummy_covid = if_else(fecha >= "2020-01-01" & fecha <= "2021-10-01", 1, 0)
+  ) %>%
+  
+  na.omit()
+
+data_final <- data_clean %>% 
+  select(fecha, d_itcer, d_remesa, d_ipc,
+                     d_desempleo, d_pib, d_pib_usa, dummy_2008,
+                     dummy_2018, dummy_covid)
+head(data_final)
+
+```
+
+### Modelos OLS y IV - TSLS
+
+```{r modelos}
+#| echo: true
+
+#controles
+controles <- "d_pib_usa + d_itcer + d_ipc + dummy_2008 + dummy_2018 + dummy_covid"
+
+#modelo OLS (Minimos Cuadrados Ordinarios)
+f_ols <- as.formula(paste("d_pib ~ d_remesa +", controles))
+model_ols <- lm(f_ols, data = data_final)
+
+#modelo IV (Variables Instrumentales / 2SLS)
+#instrumentamos 'd_remesa' usando 'd_desempleo'
+#sintaxis ivreg: Y ~ Endogena + Controles | Instrumento + Controles
+f_iv <- as.formula(paste("d_pib ~ d_remesa +", controles, 
+                         "| d_desempleo +", controles))
+
+model_iv <- ivreg(f_iv, data = data_final)
+```
+
+### Resultados
+
+```{r cat1}
+#| echo: false
+
+
+cat("=================================================================")
+
+```
+
+```{r resumen_ols}
+#| echo: true
+
+
+summary(model_ols)
+#test de Breusch-Godfrey (Autocorrelación)
+# H0: no hay autocorrelación (Lo que queremos)
+# H1: hay autocorrelación 
+bgtest(model_ols)
+#test de Breusch-Pagan (Heterocedasticidad)
+#H0: homocedasticidad 
+#H1: heterocedasticidad 
+bptest(model_ols)
+
+coeftest(model_ols, vcov = vcovHAC(model_ols))
+
+```
+
+```{r cat2}
+#| echo: false
+
+
+cat("=================================================================")
+```
+
+```{r resumen_IV}
+#| echo: true
+
+
+summary(model_iv, diagnostics = TRUE)
+coeftest(model_iv, vcov = vcovHAC(model_iv))
+```
 
 ```{r}
 #| echo: false
-2 * 2
+
+cat("=================================================================")
 ```
 
-The `echo: false` option disables the printing of code (only output is displayed).
+### Grafico comparativo
+
+```{r grafico}
+#| echo: true
+
+#comparacion DOG :'V
+#extraer los datos de los modelos 
+tidy_ols <- tidy(model_ols, conf.int = TRUE) %>% mutate(Modelo = "OLS")
+tidy_iv  <- tidy(model_iv, conf.int = TRUE)  %>% mutate(Modelo = "IV (2SLS)")
+
+#unir y filtrar
+resultados <- bind_rows(tidy_ols, tidy_iv) %>%
+  filter(term != "(Intercept)")
+
+#grafico
+ggplot(resultados, aes(x = estimate, y = term, color = Modelo)) +
+  geom_point(position = position_dodge(width = 0.5), size = 3) +
+  geom_errorbar(aes(xmin = conf.low, xmax = conf.high), 
+                 position = position_dodge(width = 0.5), 
+                 width = 0.2) + 
+  geom_vline(xintercept = 0, linetype = "dashed", color = "gray50") +
+  labs(title = "Comparación de Coeficientes: OLS vs IV",
+       subtitle = "Nótese la inmensa incertidumbre (barra larga) en el modelo IV",
+       x = "Estimación del Efecto",
+       y = "Variables") +
+  theme_minimal() +
+  theme(legend.position = "bottom")
+```
+
+### Comparacion entre OLS vs IV
+
+En el modelo IV se observa ningun resultado significativo con alto errores (insertidumbre), weak instrumen obtuvo un resultado `f = 0.097` que es menor a 10 instrumento muy debil, mide la endogeneidad donde H0: OLS es consistente que indica que el OLS es preferido, el caso de sargan dado que solo tenemos un instrumento no se puede calcular. En cambio el OLS tiene valores significativos causales en la variacion del PIB de estados unidos, es decir por cada unidad que crece el PIB de EE.UU, el PIB de Nicaragua aumenta entre 0.16 y 0.22 millones de dolares ,la crisis del 2018 tuvo un impacto significativo de 7 a 205 millones de dolares.
