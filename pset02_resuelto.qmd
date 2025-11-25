@@ -2,18 +2,18 @@
 title: "Pset02, variables instrumentales Universidad Nacional de Ingenieria Nacional DACIP Econometria Intermedia"
 format: html
 editor: visual
-author-title: "Solo cohones"       
+author-title: "Integrantes"       
 affiliation-title: ""
 author:
-  - name: Akira
+  - name: Katherine Pozo
     affiliation: UNI
-  - name: BTS
+  - name: Edwin Bolaños
     affiliation: UNI
-  - name: Cris ñaña
+  - name: Cristhiana Chamorro
     affiliation: UNI
-  - name: Elayas
+  - name: Elias Chabarria
     affiliation: UNI
-  - name: Yo
+  - name: Emerson Lopez
     affiliation: UNI
 ---
 
@@ -27,7 +27,7 @@ Documento con instrucciones para estimar por variables instrumentales (2SLS / IV
 
 -   Remesas (R): Remesas familiares (ingresos) desde [SECMCA](https://www.secmca.org/params//?cid=4&scid=0&data=REM_FAM_IEN&parent=Remesas%20familiares&son=Remesas%20familiares:%20ingresos,%20egresos%20y%20neto&list). Preferible: remesas trimestrales en niveles nominales y/o como porcentaje del PIB.
 
--   PIB (Y): PIB trimestral real de Nicaragua desde [SECMCA](https://www.secmca.org/params//? cid=1&scid=1&data=PIB_TRIMESTRAL_REAL&parent=Producci%C3%B3n&son=Producto% 20Interno%20Bruto%20%20%20trimestral&list). Construir crecimiento trimestal del PIB: $\bigtriangleup log(PIB_{t})$. Nota: dado que el SECMCA no dispone que unidad de medida esta el PIB, utilizo la base de datos del [BCN](https://www.bcn.gob.ni/cuentas-nacionales-trimestrales)
+-   PIB (Y): PIB trimestral real de Nicaragua desde [SECMCA](https://www.secmca.org/params//?%20cid=1&scid=1&data=PIB_TRIMESTRAL_REAL&parent=Producci%C3%B3n&son=Producto%%2020Interno%20Bruto%20%20%20trimestral&list). Construir crecimiento trimestal del PIB: $\bigtriangleup log(PIB_{t})$. Nota: dado que el SECMCA no dispone que unidad de medida esta el PIB, utilizo la base de datos del [BCN](https://www.bcn.gob.ni/cuentas-nacionales-trimestrales)
 
 Periodo y Frecuencia: Trabajar en frecuencia trimestral con la información disponible. Si el instrumento es mensual, agregue a trimestre ($Z_t=$ media trimestal ($Z_m$)).
 
@@ -66,7 +66,7 @@ pacman::p_load( haven, dplyr, xtable, stargazer, MatchIt, margins, ggplot2, tidy
 
 ### Importar base de datos
 
-Puede descargar la base de datos utilizada en [Github](https://github.com/user-attachments/files/23693496/data_pset02.xlsx)(README) mas el [script quarto](https://github.com/Emerson-nic/Varaibles-instrumentales_econometria)
+Puede descargar la base de datos utilizada en [Github](https://github.com/user-attachments/files/23693496/data_pset02.xlsx)(README) mas el [script quarto](https://github.com/Emerson-nic/Varaibles-instrumentales_econometria){target="_blank"}
 
 ```{r importar_excel}
 #| echo: true
@@ -208,4 +208,18 @@ ggplot(resultados, aes(x = estimate, y = term, color = Modelo)) +
 
 ### Comparacion entre OLS vs IV
 
-En el modelo IV se observa ningun resultado significativo con alto errores (insertidumbre), weak instrumen obtuvo un resultado `f = 0.097` que es menor a 10 instrumento muy debil, mide la endogeneidad donde H0: OLS es consistente que indica que el OLS es preferido, el caso de sargan dado que solo tenemos un instrumento no se puede calcular. En cambio el OLS tiene valores significativos causales en la variacion del PIB de estados unidos, es decir por cada unidad que crece el PIB de EE.UU, el PIB de Nicaragua aumenta entre 0.16 y 0.22 millones de dolares ,la crisis del 2018 tuvo un impacto significativo de 7 a 205 millones de dolares.
+En el modelo IV se observa ningun resultado significativo con alto errores (insertidumbre), weak instrumen obtuvo un resultado `f = 0.097` que es menor a 10 instrumento muy debil, mide la endogeneidad donde H0: OLS es consistente que indica que el OLS es preferido, el caso de sargan dado que solo tenemos un instrumento no se puede calcular. En cambio el OLS tiene valores significativos (las preubas de homocedasticidad y autocorrelacion indican presencia de estas por lo que se corrigio con errores robustos) causales en la variacion del PIB de estados unidos, es decir por cada unidad que crece el PIB de EE.UU, el PIB de Nicaragua aumenta entre 0.16 y 0.22 millones de dolares ,la crisis del 2018 tuvo un impacto significativo de 7 a 205 millones de dolares.
+
+### Que supuestos son relevantes para preferir IV-TSLS? Se cumplen? Argumente.
+
+Para saber si era correcto usar el método IV–TSLS en el modelo, se revisan dos cosas importantes: si el instrumento realmente sirve para explicar la variable endógena, y si de verdad existe endogeneidad que haga que OLS sea un método incorrecto. Al revisar los resultados, se puede ver claramente que estas condiciones no se cumplen.
+
+Primero, la prueba de instrumentos débiles mostró que el instrumento prácticamente no tiene relación con la variable que se supone debe explicar. El estadístico F fue de 0.097, lo cual es extremadamente bajo y confirma que el instrumento no es útil. Cuando un instrumento es tan débil, el método TSLS deja de ser confiable e incluso puede producir resultados peores que los de OLS. Por eso, este primer supuesto ya falla.
+
+Segundo, se revisó si existía endogeneidad mediante la prueba de Wu–Hausman. Esta prueba indicó que OLS sí es consistente, ya que la p es 0.659. Eso significa que no hay evidencia de que la variable sospechosa esté relacionada con el error del modelo. En otras palabras, aunque el instrumento fuera fuerte (que no lo es), no habría razón para usar IV–TSLS porque el modelo no presenta endogeneidad.
+
+Además, como el modelo está exactamente identificado, no se puede hacer la prueba de Sargan para verificar la exogeneidad del instrumento. Sin embargo, esto no afecta la conclusión, porque el instrumento ya falló en lo más básico: no es relevante y no mejora el modelo.
+
+### ¿Por qué cree que se sugiere utilizar la tasa de desempleo sectorial de US y no la tasa de desempleo de todos los sectores (tasa de desempleo)?
+
+Uso el desempleo del sector construcción privada en EE.UU. como instrumento porque este sector emplea a una gran parte de los migrantes que envían remesas a Nicaragua. Esto hace que el instrumento sea relevante (afecta las remesas), y a la vez exógeno, ya que la economía nicaragüense no se ve afectada directamente por las condiciones laborales en ese sector específico de EE.UU., sino solo a través de las remesas.
